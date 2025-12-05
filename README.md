@@ -11,7 +11,9 @@ This bash script is designed to facilitate file transfers over the [Tailscale](h
 
 ## Usage
 
-`curl -fsSL https://raw.githubusercontent.com/AzPepoze/dolphin-taildrop-plugin/refs/heads/main/install.sh | bash`
+```bash
+curl -fsSL https://raw.githubusercontent.com/AzPepoze/dolphin-taildrop-plugin/refs/heads/main/install.sh | bash
+```
 
 ## Features
 
