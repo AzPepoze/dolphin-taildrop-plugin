@@ -27,7 +27,7 @@ download_icon() {
   if [[ ! -f ${icon_path}   ]]; then
     echo "Downloading Tailscale icon..."
     mkdir -p "$(dirname "${icon_path}")"
-    curl -L "https://raw.githubusercontent.com/error-try-again/KDE-Dolphin-TailDrop-Plugin/main/tailscale.png" -o "${icon_path}"
+    curl -L "https://raw.githubusercontent.com/AzPepoze/dolphin-taildrop-plugin/main/tailscale.png" -o "${icon_path}"
   fi
 }
 
@@ -102,9 +102,9 @@ main() {
     done <<< "${status_output}"
     
     # Test to see variable output
-    echo "${status_output}"
-    echo "${name_list[@]}"
-    echo ""
+    # echo "${status_output}"
+    # echo "${name_list[@]}"
+    # echo ""
     
     for name in "${name_list[@]}"
     do
@@ -113,13 +113,13 @@ main() {
     done
     
     # Test to see variable output
-    echo "${device_list[@]}"
-    echo ""
+    # echo "${device_list[@]}"
+    # echo ""
     
     # Let the user select a device
     # Determine dialog height based upon number of devices
     height=$((16 * ${#device_list[@]}))
-    echo "$height"
+    # echo "$height"
     chosen_device=$(kdialog --title 'Taildrop' --radiolist "Choose Device" "${device_list[@]}" --geometry 200x"${height}")
     
     # Display popup if no device is selected
@@ -130,46 +130,51 @@ main() {
     
     for file in "$@"
     do
+        # Extract just the filename for cleaner display
+        local filename="${file##*/}"
+
         # If sending a folder
         if [[ -d "${file}" ]]; then
     
             # Create a temporary archive
             tmp_archive="$(mktemp -u).zip"
-            zip -czf "${tmp_archive}" -C "$(dirname "${file}")" "${file##*/}"
+            zip -czf "${tmp_archive}" -C "$(dirname "${file}")" "${filename}"
     
             # If directory is sent, add name to list
-            if tailscale file cp "${tmp_archive}" "${chosen_device}": &>/dev/null; then
-                list_names+="${file##*/} (directory), "
+            # Capture output for debug
+            if cp_output=$(tailscale file cp "${tmp_archive}" "${chosen_device}": 2>&1); then
+                list_names+="${filename} (directory), "
     
                 # Remove the temporary archive after sending
                 rm -f "${tmp_archive}"
     
                 # Check to see if file was delivered
-                if ! tailscale ping -c 1 "${chosen_device}" &>/dev/null; ; then
-                    kdialog --title 'Taildrop' --passivepopup "'${file}' folder not delivered" --icon "${HOME}/Themes/Icons/tailscale.png"
-                    exit 1
+                if ! tailscale ping -c 1 "${chosen_device}" &>/dev/null; then
+                    kdialog --title 'Taildrop' --passivepopup "'${filename}' sent, but device unreachable" --icon "${HOME}/Themes/Icons/tailscale.png"
                 fi
             else
-                kdialog --title 'Taildrop' --passivepopup "${file} folder not sent" --icon "${HOME}/Themes/Icons/tailscale.png"
+                # Show error details
+                kdialog --title 'Taildrop Error' --error "Failed to send '${filename}':\n\n${cp_output}" --icon "${HOME}/Themes/Icons/tailscale.png"
+                rm -f "${tmp_archive}"
+                exit 1
             fi
     
         # If sending a file
         elif [[ -f "${file}" ]]; then
             # If file is sent, add name to list
-            if tailscale file cp "${file}" "${chosen_device}": &>/dev/null; then
-            list_names+="${file##*/}, "
+            if cp_output=$(tailscale file cp "${file}" "${chosen_device}": 2>&1); then
+                list_names+="${filename}, "
     
                 # Check to see if file was delivered
-                if ! tailscale ping -c 1 "${chosen_device}" &>/dev/null; ; then
-                    kdialog --title 'Taildrop' --passivepopup "'${file}' not delivered" --icon "${HOME}/Themes/Icons/tailscale.png"
-                    exit 1
+                if ! tailscale ping -c 1 "${chosen_device}" &>/dev/null; then
+                    kdialog --title 'Taildrop' --passivepopup "'${filename}' sent, but device unreachable" --icon "${HOME}/Themes/Icons/tailscale.png"
                 fi
             else
-                kdialog --title 'Taildrop' --passivepopup "${file} not sent" --icon "${HOME}/Themes/Icons/tailscale.png"
+                kdialog --title 'Taildrop Error' --error "Failed to send '${filename}':\n\n${cp_output}" --icon "${HOME}/Themes/Icons/tailscale.png"
                 exit 1
             fi
         else
-            kdialog --title 'Taildrop' --passivepopup "${file} is not a valid file or directory" --icon "${HOME}/Themes/Icons/tailscale.png"
+            kdialog --title 'Taildrop' --passivepopup "'${filename}' is not a valid file or directory" --icon "${HOME}/Themes/Icons/tailscale.png"
             exit 1
         fi
     done
@@ -216,12 +221,13 @@ Name=Send via Taildrop
 Icon=${HOME}/Themes/Icons/tailscale.png
 Exec=${taildrop_script} %F
 EOF
+  make_executable "${desktop_file_path}"
 }
 
 # Main function
 main() {
   local taildrop_script="${HOME}/.config/dolphin_service_menus_creator/taildrop_script.sh"
-  local desktop_file_path="${HOME}/.local/share/kservices5/ServiceMenus/Taildrop.desktop"
+  local desktop_file_path="${HOME}/.local/share/kio/servicemenus/Taildrop.desktop"
 
   download_icon
   generate_taildrop_script "${taildrop_script}"
